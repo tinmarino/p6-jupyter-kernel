@@ -137,7 +137,6 @@ method run($spec-file!) {
                 my $status = 'ok';
                 my $magic = $.magics.find-magic($code);
                 my $result;
-                say $code.VAR.^name, "<-- WHAT";
                 $result = .preprocess($code) with $magic;
                 without $result {
                   my $p = start $.sandbox.eval($code, :store($!execution_count));

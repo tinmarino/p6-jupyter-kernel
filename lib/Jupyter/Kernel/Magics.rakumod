@@ -116,14 +116,9 @@ class Magic::Always is Magic {
     has Str:D $.rest = '';
 
     method preprocess($code! is rw) {
-        say "subcommand1: ", $.subcommand;
         given $.subcommand {
-            when 'prepend' {
-                $always.prepend.push($.rest.trim);
-            }
-            when 'append' {
-                $always.append.push($.rest.trim);
-            }
+            when 'prepend' { $always.prepend.push($.rest.trim); }
+            when 'append' { $always.append.push($.rest.trim); }
             when 'clear' {
                 $always = Always.new;
                 return Result.new:
@@ -131,7 +126,6 @@ class Magic::Always is Magic {
                     output-mime-type => 'text/plain';
             }
             when 'show' {
-                say "In show";
                 # TODO nice join
                 my $output = '';
                 for $always.^attributes -> $attr {
@@ -145,14 +139,12 @@ class Magic::Always is Magic {
         return;
     }
 }
+
 class Magic::AlwaysWorker is Magic {
+    #= Applyer for always magics on each line
     method unmagicify($code! is rw) {
-        my $module = Jupyter::Kernel::Magics.new;
-        my $magic-action = $module.parse-magic($code);
-        if $magic-action {
-            say "Preprocess $code with $magic-action";
-            return $magic-action.preprocess($code);
-        }
+        my $magic-action = Jupyter::Kernel::Magics.new.parse-magic($code);
+        return $magic-action.preprocess($code) if $magic-action;
         return Nil;
     }
 
@@ -232,8 +224,6 @@ class Magic::Actions {
     method always($/) {
         my $subcommand = ~$<subcommand> || 'prepend';
         my $rest = $<rest> ?? ~$<rest> !! '';
-        #$multimagic = Jupyter::Kernel::Magics.new.find-magic($rest);
-        say "Args:, $subcommand, $rest";
         $/.make: Magic::Always.new(
             subcommand => $subcommand,
             rest => $rest);
@@ -264,14 +254,14 @@ method parse-magic($code is rw) {
     my $match = Magic::Grammar.new.parse($magic-line,:$actions) or return Nil;
     $code .= subst( $magic-line, '');
     $code .= subst( /\n/, '');
-    say "MAtch:", $match;
     return $match.made;
 }
 
 method find-magic($code is rw) {
+    # Parse
     my $magic-action = self.parse-magic($code);
+    # If normal line and there is always magics -> activate them
     if !$magic-action && ($always.prepend || $always.append) {
-        say "Magic new aways";
         return Magic::AlwaysWorker.new;
     }
     return $magic-action;
