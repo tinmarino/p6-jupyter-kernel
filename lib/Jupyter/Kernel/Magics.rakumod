@@ -15,6 +15,17 @@ my class Result does Jupyter::Kernel::Response {
     }
 }
 
+#| Container of always magics registered
+my class Always {
+    has @.before is rw;
+    has @.prepend is rw;
+    has @.append is rw;
+    has @.after is rw;
+}
+
+#| Globals
+my $always = Always.new;
+
 class Magic::Filter {
     method transform($str) {
         # no transformation by default
@@ -102,11 +113,46 @@ class Magic::Filters is Magic {
     }
 }
 
+class Magic::Always is Magic {
+    has Str:D $.subcommand = '';
+    has Str:D $.magic = '';
+    has Str:D $.rest = '';
+    method preprocess($code! is rw) {
+        say "subcommand1: ", $.subcommand;
+        given $.subcommand {
+            when 'prepend' {
+                $always.prepend.push($.rest);
+            }
+            when 'append' {
+                $always.append.push($.rest);
+            }
+            when 'clear' {
+                $always = Always.new;
+                return Result.new:
+                    output => 'Always: cleared',
+                    output-mime-type => 'text/plain';
+            }
+            when 'show' {
+                say "In show";
+                # TODO nice join
+                my $output = '';
+                for $always.^attributes -> $attr {
+                    $output ~= $attr.name.substr(2)~" = "~$attr.get_value($always).join(';')~"\n";
+                }
+                return Result.new:
+                    output => $output,
+                    output-mime-type => 'text/plain';
+            }
+        }
+        return;
+    }
+}
 
 grammar Magic::Grammar {
-    rule TOP {
+    rule TOP { <magic> }
+    rule magic {
         [ '%%' | '#%' ]
-        [ <simple> || <args> || <filter> ]
+        [ <simple> || <args> || <filter> || <always> ]
     }
     token simple {
        $<key>=[ 'javascript' | 'bash' ]
@@ -119,6 +165,9 @@ grammar Magic::Grammar {
            | $<out>=<mime> ['>' $<stdout>=<mime>]?
            | '>' $<stdout>=<mime>
        ]
+    }
+    token always {
+       $<key>='always' <.ws> $<subcommand>=[ '' | 'prepend' | 'append' | 'show' | 'clear' ] $<rest>=.*
     }
     token mime {
        | <html>
@@ -133,8 +182,9 @@ grammar Magic::Grammar {
 }
 
 class Magic::Actions {
-    method TOP($/) {
-        $/.make: $<simple>.made // $<filter>.made // $<args>.made
+    method TOP($/) { $/.make: $<magic>.made }
+    method magic($/) {
+        $/.make: $<simple>.made // $<filter>.made // $<args>.made // $<always>.made;
     }
     method simple($/) {
         given "$<key>" {
@@ -152,6 +202,18 @@ class Magic::Actions {
                 $/.make: Magic::Run.new(file => trim ~$<rest>);
             }
         }
+    }
+    method always($/) {
+        my $subcommand = ~$<subcommand> || 'prepend';
+        my $magic = $<magic> ?? ~$<magic> !! '';
+        my $rest = $<rest> ?? ~$<rest> !! '';
+        #$rest = Jupyter::Kernel::Magics.new.find-magic($rest);
+        say "Args:, $subcommand, $magic, $rest";
+        #my $m = ~$<subcommand> // 'prepend';
+        $/.make: Magic::Always.new(
+            subcommand => $subcommand,
+            magic => $magic,
+            rest => $rest);
     }
     method filter($/) {
         my %args =
