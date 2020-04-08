@@ -116,25 +116,24 @@ class Magic::Always is Magic {
     has Str:D $.rest = '';
 
     method preprocess($code! is rw) {
+        my $output = '';
         given $.subcommand {
             when 'prepend' { $always.prepend.push($.rest.trim); }
             when 'append' { $always.append.push($.rest.trim); }
             when 'clear' {
                 $always = Always.new;
-                return Result.new:
-                    output => 'Always: cleared',
-                    output-mime-type => 'text/plain';
+                $output = 'Always actions cleared';
             }
             when 'show' {
-                # TODO nice join
-                my $output = '';
                 for $always.^attributes -> $attr {
                     $output ~= $attr.name.substr(2)~" = "~$attr.get_value($always).join('; ')~"\n";
                 }
-                return Result.new:
-                    output => $output,
-                    output-mime-type => 'text/plain';
             }
+        }
+        if $output {
+            return Result.new:
+                output => $output,
+                output-mime-type => 'text/plain';
         }
         return;
     }
@@ -151,9 +150,7 @@ class Magic::AlwaysWorker is Magic {
     method preprocess($code! is rw) {
         my $pre = ''; my $post = '';
         for $always.prepend -> $magic-code {
-            say $magic-code.VAR.^name, "<-- WHAT1 mgics";
             my $container = $magic-code;
-            say $container.VAR.^name, "<-- WHAT2 mgics $container";
             self.unmagicify($container);
             $pre ~= $container ~ ";\n";
         }
