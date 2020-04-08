@@ -17,10 +17,8 @@ my class Result does Jupyter::Kernel::Response {
 
 #| Container of always magics registered
 my class Always {
-    has @.before is rw;
     has @.prepend is rw;
     has @.append is rw;
-    has @.after is rw;
 }
 
 #| Globals
@@ -115,16 +113,16 @@ class Magic::Filters is Magic {
 
 class Magic::Always is Magic {
     has Str:D $.subcommand = '';
-    has Str:D $.magic = '';
     has Str:D $.rest = '';
+
     method preprocess($code! is rw) {
         say "subcommand1: ", $.subcommand;
         given $.subcommand {
             when 'prepend' {
-                $always.prepend.push($.rest);
+                $always.prepend.push($.rest.trim);
             }
             when 'append' {
-                $always.append.push($.rest);
+                $always.append.push($.rest.trim);
             }
             when 'clear' {
                 $always = Always.new;
@@ -137,13 +135,41 @@ class Magic::Always is Magic {
                 # TODO nice join
                 my $output = '';
                 for $always.^attributes -> $attr {
-                    $output ~= $attr.name.substr(2)~" = "~$attr.get_value($always).join(';')~"\n";
+                    $output ~= $attr.name.substr(2)~" = "~$attr.get_value($always).join('; ')~"\n";
                 }
                 return Result.new:
                     output => $output,
                     output-mime-type => 'text/plain';
             }
         }
+        return;
+    }
+}
+class Magic::AlwaysWorker is Magic {
+    method unmagicify($code! is rw) {
+        my $module = Jupyter::Kernel::Magics.new;
+        my $magic-action = $module.parse-magic($code);
+        if $magic-action {
+            say "Preprocess $code with $magic-action";
+            return $magic-action.preprocess($code);
+        }
+        return Nil;
+    }
+
+    method preprocess($code! is rw) {
+        my $pre = ''; my $post = '';
+        for $always.prepend -> $magic-code {
+            say $magic-code.VAR.^name, "<-- WHAT1 mgics";
+            my $container = $magic-code;
+            say $container.VAR.^name, "<-- WHAT2 mgics $container";
+            self.unmagicify($container);
+            $pre ~= $container ~ ";\n";
+        }
+        for $always.append -> $magic-code {
+            self.unmagicify($magic-code);
+            $post ~= $magic-code ~ ";\n";
+        }
+        $code = $pre ~ $code ~ $post;
         return;
     }
 }
@@ -205,14 +231,11 @@ class Magic::Actions {
     }
     method always($/) {
         my $subcommand = ~$<subcommand> || 'prepend';
-        my $magic = $<magic> ?? ~$<magic> !! '';
         my $rest = $<rest> ?? ~$<rest> !! '';
-        #$rest = Jupyter::Kernel::Magics.new.find-magic($rest);
-        say "Args:, $subcommand, $magic, $rest";
-        #my $m = ~$<subcommand> // 'prepend';
+        #$multimagic = Jupyter::Kernel::Magics.new.find-magic($rest);
+        say "Args:, $subcommand, $rest";
         $/.make: Magic::Always.new(
             subcommand => $subcommand,
-            magic => $magic,
             rest => $rest);
     }
     method filter($/) {
@@ -234,12 +257,22 @@ class Magic::Actions {
     }
 }
 
-method find-magic($code is rw) {
+method parse-magic($code is rw) {
     my $magic-line = $code.lines[0] or return Nil;
-    $magic-line ~~ /^ [ '#%' | '%%' ]/ or return Nil;
+    $magic-line ~~ /^ [ '#%' | '%%' ] / or return Nil;
     my $actions = Magic::Actions.new;
     my $match = Magic::Grammar.new.parse($magic-line,:$actions) or return Nil;
     $code .= subst( $magic-line, '');
     $code .= subst( /\n/, '');
+    say "MAtch:", $match;
     return $match.made;
+}
+
+method find-magic($code is rw) {
+    my $magic-action = self.parse-magic($code);
+    if !$magic-action && ($always.prepend || $always.append) {
+        say "Magic new aways";
+        return Magic::AlwaysWorker.new;
+    }
+    return $magic-action;
 }
