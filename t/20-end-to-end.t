@@ -110,6 +110,14 @@ is $msg{'content'}{'execution_state'}, 'idle', 'Order: 5. content = idle';
 ### 3.*-1 No more
 is @stdout.elems, 0, 'Order: *. No more element in iopub';
 
+# Test always
+is $cl.qa('%% always print "pre1-" # GREP-TEST'), '', 'Always register pre1';
+is $cl.qa('%% always prepend print "pre2-" # GREP-TEST'), '', 'Always register pre2';
+is $cl.qa('print "mid" # GREP-TEST'), '', 'Always test1';
+is $cl.qa('%% always append print "-post1" # GREP-TEST'), '', 'Always register post1';
+is $cl.qa('%% always append print "-post2" # GREP-TEST'), '', 'Always register post2';
+is $cl.qa('print "mid" # GREP-TEST'), '', 'Always test2';
+
 # Test history
 $cl.wait-history;
 is $cl.qa('my $a = "GREP-TEST";'), 'GREP-TEST', 'History Pre';

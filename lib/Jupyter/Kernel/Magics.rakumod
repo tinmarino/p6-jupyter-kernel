@@ -116,7 +116,7 @@ class Magic::Always is Magic {
     has Str:D $.rest = '';
 
     method preprocess($code! is rw) {
-        my $output = '';
+        my $output = 'toto';
         given $.subcommand {
             when 'prepend' { $always.prepend.push($.rest.trim); }
             when 'append' { $always.append.push($.rest.trim); }
@@ -130,12 +130,9 @@ class Magic::Always is Magic {
                 }
             }
         }
-        if $output {
-            return Result.new:
-                output => $output,
-                output-mime-type => 'text/plain';
-        }
-        return;
+        return Result.new:
+            output => $output,
+            output-mime-type => 'text/plain';
     }
 }
 
@@ -159,7 +156,7 @@ class Magic::AlwaysWorker is Magic {
             $post ~= $magic-code ~ ";\n";
         }
         $code = $pre ~ $code ~ $post;
-        return;
+        return Nil;
     }
 }
 
