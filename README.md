@@ -161,8 +161,8 @@ by the kernel.  See EXAMPLES.  The following magics are supported:
   they will become available in the notebook execution context.
 
   * `%% always [SUBCOMMAND] CODE`: SUBCOMMAND defaults to `prepend` but can be:
-    * `prepend`: Prepend each cell by `CODE;\\n`
-    * `append`: Append `;\\nCODE` after each command
+    * `prepend`: Prepend each cell by `CODE;\n`
+    * `append`: Append `;\nCODE` after each command
     * `clear`: Clear all `always` registered actions
     * `show`: Show `always` registered actions
 
